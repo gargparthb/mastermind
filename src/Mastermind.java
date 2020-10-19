@@ -1,6 +1,7 @@
 import tester.*;                // The tester library
 import javalib.worldimages.*;   // images, like RectangleImage or OverlayImages
 import javalib.funworld.*;      // the abstract World class and the big-bang library
+
 import java.awt.Color;          // general colors (as triples of red,green,blue values)
 // and predefined colors (Color.RED, Color.GRAY, etc.)
 import javalib.worldcanvas.*;  // for manually viewing images (delete if you're not using it)
@@ -94,11 +95,11 @@ interface ILoGuess {
 class MtLoGuess implements ILoGuess {
 }
 
-class ConsLoAGuess implements ILoGuess {
+class ConsLoGuess implements ILoGuess {
   Guess first;
   ILoGuess rest;
 
-  ConsLoAGuess(Guess first, ILoGuess rest) {
+  ConsLoGuess(Guess first, ILoGuess rest) {
     this.first = first;
     this.rest = rest;
   }
@@ -196,10 +197,47 @@ class Examples {
                                   new ConsLoColor(Color.PINK,
                                           new ConsLoColor(Color.BLACK, new MtLoColor()))))));
 
+  // yellow, green, pink, yellow
+  ILoColor randomSeq = MMGame.makeSequence(true, 4, sixColors, new Random(1));
+
+  // some tester [list-of Color]
+  ILoColor justRed = new ConsLoColor(Color.RED, new MtLoColor());
+  ILoColor GBPR = new ConsLoColor(Color.GREEN,
+          new ConsLoColor(Color.BLACK,
+                  new ConsLoColor(Color.PINK,
+                          justRed)));
+  ILoColor BGRY = new ConsLoColor(Color.BLUE,
+          new ConsLoColor(Color.GREEN,
+                  new ConsLoColor(Color.RED,
+                          new ConsLoColor(Color.YELLOW, new MtLoColor()))));
+
+  // guesses
+  Guess guessOfGBPR = new Guess(GBPR, 1, 1);
+  Guess guessOfBRGY = new Guess(BGRY, 0, 2);
+
+  // games
+  MMGame testerGame = new MMGame(true, 4, 10, sixColors,
+          randomSeq, justRed, new MtLoGuess(), new Random(1));
+  MMGame testerGame1 = new MMGame(true, 4, 10, sixColors,
+          randomSeq, justRed, new ConsLoGuess(guessOfBRGY, new ConsLoGuess(guessOfGBPR, new MtLoGuess())), new Random(1));
+
   boolean testConstructor(Tester tester) {
     return tester.checkConstructorException(new IllegalArgumentException("values must be greater than zero"), "MMGame", true, -1, -1, sixColors)
             && tester.checkConstructorException(new IllegalArgumentException("values must be greater than zero"), "MMGame", true, 10, -5, sixColors)
             && tester.checkConstructorException(new IllegalArgumentException("must be more than one color"), "MMGame", true, 10, 5, new MtLoColor())
             && tester.checkConstructorException(new IllegalArgumentException("not enough possible colors"), "MMGame", false, 10, 8, sixColors);
+  }
+
+  boolean testIndex(Tester tester) {
+    return tester.checkExpect(justRed.getIndex(0), Color.RED)
+            && tester.checkExpect(GBPR.getIndex(3), Color.RED)
+            && tester.checkException(new IllegalArgumentException("given index is not in the list"), GBPR, "getIndex", 10);
+  }
+
+  boolean testRemove(Tester tester) {
+    return tester.checkExpect(GBPR.remove(Color.GREEN), new ConsLoColor(Color.BLACK,
+            new ConsLoColor(Color.PINK,
+                    justRed)))
+            && tester.checkExpect(GBPR.remove(Color.YELLOW), GBPR);
   }
 }
