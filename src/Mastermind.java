@@ -1,11 +1,13 @@
+import tester.*;                // The tester library
+import javalib.worldimages.*;   // images, like RectangleImage or OverlayImages
 import javalib.funworld.*;      // the abstract World class and the big-bang library
-
 import java.awt.Color;          // general colors (as triples of red,green,blue values)
 // and predefined colors (Color.RED, Color.GRAY, etc.)
+import javalib.worldcanvas.*;  // for manually viewing images (delete if you're not using it)
 
 import java.util.Random;
 
-class MMGAME extends World {
+class MMGame extends World {
 
   // configurations
   boolean duplicatesAllowed;
@@ -20,7 +22,7 @@ class MMGAME extends World {
 
   Random rand;
 
-  MMGAME(boolean duplicatesAllowed, int sequenceLen, int maxGuesses, ILoColor possibleColors, ILoColor correct, ILoColor current, ILoGuess past, Random rand) {
+  MMGame(boolean duplicatesAllowed, int sequenceLen, int maxGuesses, ILoColor possibleColors, ILoColor correct, ILoColor current, ILoGuess past, Random rand) {
     this.duplicatesAllowed = validateParams(duplicatesAllowed, sequenceLen, maxGuesses, possibleColors);
     this.sequenceLen = sequenceLen;
     this.maxGuesses = maxGuesses;
@@ -33,7 +35,7 @@ class MMGAME extends World {
     this.rand = rand;
   }
 
-  MMGAME(boolean duplicatesAllowed, int sequenceLen, int maxGuesses, ILoColor possibleColors) {
+  MMGame(boolean duplicatesAllowed, int sequenceLen, int maxGuesses, ILoColor possibleColors) {
     this(duplicatesAllowed,
             sequenceLen,
             maxGuesses,
@@ -194,4 +196,10 @@ class Examples {
                                   new ConsLoColor(Color.PINK,
                                           new ConsLoColor(Color.BLACK, new MtLoColor()))))));
 
+  boolean testConstructor(Tester tester) {
+    return tester.checkConstructorException(new IllegalArgumentException("values must be greater than zero"), "MMGame", true, -1, -1, sixColors)
+            && tester.checkConstructorException(new IllegalArgumentException("values must be greater than zero"), "MMGame", true, 10, -5, sixColors)
+            && tester.checkConstructorException(new IllegalArgumentException("must be more than one color"), "MMGame", true, 10, 5, new MtLoColor())
+            && tester.checkConstructorException(new IllegalArgumentException("not enough possible colors"), "MMGame", false, 10, 8, sixColors);
+  }
 }
