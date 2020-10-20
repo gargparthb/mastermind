@@ -87,11 +87,25 @@ class MMGame extends World {
     int leftX = (int) (SIZE/2) - (this.possibleColors.length() / 2) * CIRC_SPACING;
     int rightX = leftX + (this.sequenceLen * CIRC_SPACING);
 
+    int guessedLen = past.length();
+    int currentY = (14 - guessedLen) / 16;
+    int blankCount = this.maxGuesses - (guessedLen + 1);
+
     // drawing individual components
     WorldScene bgWithOptions = this.possibleColors.draw(bg, leftX, SIZE * 15 / 16);
     WorldScene withGuesses = this.past.drawGuesses(bgWithOptions, leftX, rightX, SIZE * 14 / 16);
+    WorldScene withCurrent = this.drawCurrent(withGuesses, leftX, currentY);
 
     return withGuesses;
+  }
+
+  // draw the current guess row
+  public WorldScene drawCurrent(WorldScene bg, int leftX, int y) {
+    if(this.current.length() == sequenceLen) {
+      return this.current.draw(bg, leftX, y);
+    } else {
+      return this.current.addBlanks(this.sequenceLen).draw(bg, leftX, y);
+    }
   }
 }
 
@@ -120,11 +134,18 @@ class Guess {
 interface ILoGuess {
   // draw the past guesses with the feedback
   WorldScene drawGuesses(WorldScene bg, int leftX, int rightX, int y);
+
+  // length
+  int length();
 }
 
 class MtLoGuess implements ILoGuess {
   public WorldScene drawGuesses(WorldScene bg, int leftX, int rightX, int y) {
     return bg;
+  }
+
+  public int length() {
+    return 0;
   }
 }
 
@@ -139,6 +160,10 @@ class ConsLoGuess implements ILoGuess {
 
   public WorldScene drawGuesses(WorldScene bg, int leftX, int rightX, int y) {
     return this.rest.drawGuesses(this.first.drawGuess(bg, leftX, rightX, y), leftX, rightX, y - (MMGame.SIZE / 16));
+  }
+
+  public int length() {
+    return 1 + this.rest.length();
   }
 }
 
@@ -157,6 +182,8 @@ interface ILoColor {
 
   // draws with the current x
   WorldScene draw(WorldScene bg, int x, int y);
+
+  // adds
 }
 
 class MtLoColor implements ILoColor {
