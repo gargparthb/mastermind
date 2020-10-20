@@ -161,17 +161,22 @@ class MMGame extends World {
   // adds the given color to the current guess
   public MMGame appendToCurrent(Color c) {
     ILoColor updatedCurrent = this.current.append(c);
-    return this.replaceCurrent(updatedCurrent);
+    return this.replaceCurrentandPast(updatedCurrent, this.past);
   }
 
   // chops off the last color in the current list
   public MMGame removeLastGuess() {
-    return this.replaceCurrent(this.current.chop());
+    return this.replaceCurrentandPast(this.current.chop(), this.past);
   }
 
-  // changes the current guess
-  public MMGame replaceCurrent(ILoColor newCurrent) {
-    return new MMGame(this.duplicatesAllowed, this.sequenceLen, this.maxGuesses, this.possibleColors, this.correct, newCurrent, this.past, this.rand);
+  // changes the current guess and the past guesses
+  public MMGame replaceCurrentandPast(ILoColor newCurrent, ILoGuess newPast) {
+    return new MMGame(this.duplicatesAllowed, this.sequenceLen, this.maxGuesses, this.possibleColors, this.correct, newCurrent, newPast, this.rand);
+  }
+
+  // turns the current input into a past guess with feedback
+  public MMGame processGuess() {
+    return this.replaceCurrentandPast(new MtLoColor(), this.past.appendWithFeedback(this.correct, this.current));
   }
 }
 
@@ -203,6 +208,9 @@ interface ILoGuess {
 
   // length
   int length();
+
+  // adds the list of colors to the list with the feedback numbers
+  ILoGuess appendWithFeedback(ILoColor correct, ILoColor guess);
 }
 
 class MtLoGuess implements ILoGuess {
@@ -212,6 +220,10 @@ class MtLoGuess implements ILoGuess {
 
   public int length() {
     return 0;
+  }
+
+  public ILoGuess appendWithFeedback(ILoColor correct, ILoColor guess) {
+    return new ConsLoGuess(guess.makeGuess(correct), new MtLoGuess());
   }
 }
 
@@ -230,6 +242,14 @@ class ConsLoGuess implements ILoGuess {
 
   public int length() {
     return 1 + this.rest.length();
+  }
+
+  public ILoGuess appendWithFeedback(ILoColor correct, ILoColor guess) {
+    if (this.rest.length() == 0) {
+      return new ConsLoGuess(this.first, new ConsLoGuess(guess.makeGuess(correct), new MtLoGuess()));
+    } else {
+      return new ConsLoGuess(this.first, this.rest.appendWithFeedback(correct, guess));
+    }
   }
 }
 
@@ -254,6 +274,9 @@ interface ILoColor {
 
   // removes last item
   ILoColor chop();
+
+  // calculates the feedback and makes the guess given the correct sequence
+  Guess makeGuess(ILoColor correct);
 }
 
 class MtLoColor implements ILoColor {
@@ -292,6 +315,11 @@ class MtLoColor implements ILoColor {
 
   public ILoColor chop() {
     return this;
+  }
+
+  public Guess makeGuess(ILoColor correct) {
+    // vacuous case
+    return new Guess(new MtLoColor(), 0, 0);
   }
 }
 
@@ -359,6 +387,10 @@ class ConsLoColor implements ILoColor {
     } else {
       return new ConsLoColor(this.first, this.rest.chop());
     }
+  }
+
+  public Guess makeGuess(ILoColor) {
+
   }
 }
 
