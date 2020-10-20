@@ -10,6 +10,11 @@ import java.util.Random;
 
 class MMGame extends World {
 
+  // drawing variables
+  static int SIZE = 800;
+  static int CIRC_SIZE = 20;
+  static int CIRC_SPACING = 50;
+
   // configurations
   boolean duplicatesAllowed;
   int sequenceLen;
@@ -32,7 +37,7 @@ class MMGame extends World {
     this.correct = makeSequence(duplicatesAllowed, sequenceLen, possibleColors, rand);
     this.current = current;
     this.past = past;
-
+    // allows for testing of random
     this.rand = rand;
   }
 
@@ -49,6 +54,7 @@ class MMGame extends World {
 
   // starts the accumulator to make a random sequence
   static ILoColor makeSequence(boolean duplicatesAllowed, int len, ILoColor possibleColors, Random gen) {
+    // starts accumulator
     return new MtLoColor().makeSequence(duplicatesAllowed, len, possibleColors, gen);
   }
 
@@ -59,12 +65,14 @@ class MMGame extends World {
     int posGuesses = posCheck(maxGuesses, "values must be greater than zero");
     int posColLen = posCheck(posCols.length(), "must be more than one color");
 
+    // impossible input check
     if (!dupes && posColLen < posSeq) {
       throw new IllegalArgumentException("not enough possible colors");
     }
     return dupes;
   }
 
+  // if the number is positive return otherwise return error
   static int posCheck(int tester, String msg) {
     if (tester < 1) {
       throw new IllegalArgumentException(msg);
@@ -72,8 +80,18 @@ class MMGame extends World {
     return tester;
   }
 
+  // to-draw
   public WorldScene makeScene() {
-    return null;
+    WorldScene bg = this.getEmptyScene();
+
+    int leftX = (int) (SIZE/2) - (this.possibleColors.length() / 2) * CIRC_SPACING;
+    int rightX = leftX + (this.sequenceLen * CIRC_SPACING);
+
+    // drawing individual components
+    WorldScene bgWithOptions = this.possibleColors.draw(bg, leftX, SIZE * 15 / 16);
+    WorldScene withGuesses = this.past.drawGuesses(bgWithOptions, leftX, rightX, SIZE * 14 / 16);
+
+    return withGuesses;
   }
 }
 
@@ -87,12 +105,27 @@ class Guess {
     this.outOfPlace = outOfPlace;
     this.correct = correct;
   }
+
+  // draws the colors and feedback
+  public WorldScene drawGuess(WorldScene bg, int leftX, int rightX, int y) {
+    WorldImage outOfPlaceText = new TextImage(Integer.toString(this.outOfPlace), MMGame.CIRC_SIZE, Color.ORANGE);
+    WorldImage correctText = new TextImage(Integer.toString(this.correct), MMGame.CIRC_SIZE, Color.GREEN);
+
+    return this.sequence.draw(bg, leftX, y)
+            .placeImageXY(outOfPlaceText, rightX, y)
+            .placeImageXY(correctText, rightX + MMGame.CIRC_SPACING, y);
+  }
 }
 
 interface ILoGuess {
+  // draw the past guesses with the feedback
+  WorldScene drawGuesses(WorldScene bg, int leftX, int rightX, int y);
 }
 
 class MtLoGuess implements ILoGuess {
+  public WorldScene drawGuesses(WorldScene bg, int leftX, int rightX, int y) {
+    return bg;
+  }
 }
 
 class ConsLoGuess implements ILoGuess {
@@ -102,6 +135,10 @@ class ConsLoGuess implements ILoGuess {
   ConsLoGuess(Guess first, ILoGuess rest) {
     this.first = first;
     this.rest = rest;
+  }
+
+  public WorldScene drawGuesses(WorldScene bg, int leftX, int rightX, int y) {
+    return this.rest.drawGuesses(this.first.drawGuess(bg, leftX, rightX, y), leftX, rightX, y - (MMGame.SIZE / 16));
   }
 }
 
@@ -117,6 +154,9 @@ interface ILoColor {
 
   // remove the given color
   ILoColor remove(Color toRemove);
+
+  // draws with the current x
+  WorldScene draw(WorldScene bg, int x, int y);
 }
 
 class MtLoColor implements ILoColor {
@@ -144,6 +184,14 @@ class MtLoColor implements ILoColor {
   public ILoColor remove(Color toRemove) {
     return this;
   }
+
+  public WorldScene draw(WorldScene bg, int y) {
+    return bg;
+  }
+
+  public WorldScene draw(WorldScene bg, int x, int y) {
+    return bg;
+  }
 }
 
 class ConsLoColor implements ILoColor {
@@ -156,10 +204,12 @@ class ConsLoColor implements ILoColor {
   }
 
   public int length() {
+    // simple recursion
     return 1 + this.rest.length();
   }
 
   public ILoColor makeSequence(boolean duplicatesAllowed, int left, ILoColor possibleColors, Random gen) {
+    // is there a way to abstract this
     // uses natural number recursion
     if (left == 0) {
       return this;
@@ -186,6 +236,12 @@ class ConsLoColor implements ILoColor {
     } else {
       return new ConsLoColor(this.first, this.rest.remove(toRemove));
     }
+  }
+
+  public WorldScene draw(WorldScene bg, int x, int y) {
+    return this.rest
+            .draw(bg.placeImageXY(new CircleImage(MMGame.CIRC_SIZE, OutlineMode.SOLID, this.first), x, y),
+                    x + MMGame.CIRC_SPACING, y);
   }
 }
 
@@ -239,5 +295,9 @@ class Examples {
             new ConsLoColor(Color.PINK,
                     justRed)))
             && tester.checkExpect(GBPR.remove(Color.YELLOW), GBPR);
+  }
+
+  boolean testRun(Tester tester) {
+    return testerGame1.bigBang(MMGame.SIZE, MMGame.SIZE);
   }
 }
