@@ -15,6 +15,8 @@ class MMGame extends World {
   static int CIRC_SIZE = 20;
   static int CIRC_SPACING = 50;
 
+  static int BOTTOM_Y = 15;
+
   // configurations
   boolean duplicatesAllowed;
   int sequenceLen;
@@ -84,39 +86,41 @@ class MMGame extends World {
   public WorldScene makeScene() {
     return this.drawBoard().placeImageXY(new RectangleImage(
             (sequenceLen * CIRC_SPACING),
-            SIZE /16,
+            SIZE / 16,
             OutlineMode.SOLID,
-            Color.BLACK), (SIZE / 2) - 2 * CIRC_SPACING, 200);
+            Color.BLACK), (SIZE - CIRC_SPACING) / 2, scaleY(BOTTOM_Y - (this.maxGuesses)));
   }
 
+  // draws everything without the correct code
   public WorldScene drawBoard() {
     WorldScene bg = this.getEmptyScene();
 
-    int leftX = (SIZE / 2) - (this.possibleColors.length() / 2) * CIRC_SPACING;
+    int leftX = (SIZE / 2) - (this.sequenceLen / 2) * CIRC_SPACING;
     int rightX = leftX + (this.sequenceLen * CIRC_SPACING);
 
     int guessedLen = past.length();
     int blankCount = this.maxGuesses - (guessedLen + 1);
 
-    int unguessedY = (13 - this.past.length()) * SIZE / 16;
+    int unguessedY = scaleY(BOTTOM_Y - (1 + this.past.length()));
 
     // drawing individual components
-    WorldScene bgWithOptions = this.possibleColors.draw(bg, leftX, SIZE * 15 / 16);
-    WorldScene withGuesses = this.past.drawGuesses(bgWithOptions, leftX, rightX, SIZE * 14 / 16);
+    WorldScene bgWithOptions = this.possibleColors.draw(bg, leftX, scaleY(BOTTOM_Y));
+    WorldScene withGuesses = this.past.drawGuesses(bgWithOptions, leftX, rightX, scaleY(BOTTOM_Y - 1));
     WorldScene withCurrent = this.drawCurrent(withGuesses, leftX, rightX - CIRC_SPACING);
     return this.drawUnguessed(withCurrent, blankCount, rightX - CIRC_SPACING, unguessedY);
   }
 
+  // scales the Y value to the canvas size
+  static int scaleY(int y) {
+    return (SIZE * y) / 16;
+  }
+
   // draw the current guess row
   public WorldScene drawCurrent(WorldScene bg, int leftX, int rightX) {
-    int rowY = (14 - this.past.length()) * SIZE / 16;
+    int rowY = scaleY(BOTTOM_Y - (1 + this.past.length()));
 
-    if (this.current.length() == sequenceLen) {
-      return this.current.draw(bg, leftX, rowY);
-    } else {
-      int blanks = this.sequenceLen - this.current.length();
-      return this.current.draw(this.drawBlanks(bg, blanks, rightX, rowY), leftX, rowY);
-    }
+    int blanks = this.sequenceLen - this.current.length();
+    return this.current.draw(this.drawBlanks(bg, blanks, rightX, rowY), leftX, rowY);
   }
 
   // draws the unguessed rows
@@ -125,7 +129,7 @@ class MMGame extends World {
       return bg;
     } else {
       WorldScene updatedBg = this.drawBlanks(bg, this.sequenceLen, rightX, y);
-      return this.drawUnguessed(updatedBg, blankCount - 1, rightX, y - (SIZE / 16));
+      return this.drawUnguessed(updatedBg, blankCount - 1, rightX, y - scaleY(1));
     }
   }
 
@@ -137,6 +141,37 @@ class MMGame extends World {
       WorldScene updatedBg = bg.placeImageXY(new CircleImage(CIRC_SIZE, OutlineMode.OUTLINE, Color.BLACK), x, y);
       return this.drawBlanks(updatedBg, blanks - 1, x - CIRC_SPACING, y);
     }
+  }
+
+  // processes the key input
+  public World onKeyEvent(String key) {
+    boolean isFull = this.current.length() == sequenceLen;
+
+    if ("1234567890".contains(key) && Integer.parseInt(key) <= this.possibleColors.length() && !isFull) {
+      return this.appendToCurrent(this.possibleColors.getIndex(Integer.parseInt(key) - 1));
+    } else if (key.equals("backspace")) {
+      return this.removeLastGuess();
+    } else if (key.equals("enter") && isFull) {
+      return this.processGuess();
+    } else {
+      return this;
+    }
+  }
+
+  // adds the given color to the current guess
+  public MMGame appendToCurrent(Color c) {
+    ILoColor updatedCurrent = this.current.append(c);
+    return this.replaceCurrent(updatedCurrent);
+  }
+
+  // chops off the last color in the current list
+  public MMGame removeLastGuess() {
+    return this.replaceCurrent(this.current.chop());
+  }
+
+  // changes the current guess
+  public MMGame replaceCurrent(ILoColor newCurrent) {
+    return new MMGame(this.duplicatesAllowed, this.sequenceLen, this.maxGuesses, this.possibleColors, this.correct, newCurrent, this.past, this.rand);
   }
 }
 
@@ -214,7 +249,11 @@ interface ILoColor {
   // draws with the current x
   WorldScene draw(WorldScene bg, int x, int y);
 
-  // adds
+  // appends a color to the end
+  ILoColor append(Color c);
+
+  // removes last item
+  ILoColor chop();
 }
 
 class MtLoColor implements ILoColor {
@@ -243,12 +282,16 @@ class MtLoColor implements ILoColor {
     return this;
   }
 
-  public WorldScene draw(WorldScene bg, int y) {
+  public WorldScene draw(WorldScene bg, int x, int y) {
     return bg;
   }
 
-  public WorldScene draw(WorldScene bg, int x, int y) {
-    return bg;
+  public ILoColor append(Color c) {
+    return new ConsLoColor(c, new MtLoColor());
+  }
+
+  public ILoColor chop() {
+    return this;
   }
 }
 
@@ -301,6 +344,22 @@ class ConsLoColor implements ILoColor {
             .draw(bg.placeImageXY(new CircleImage(MMGame.CIRC_SIZE, OutlineMode.SOLID, this.first), x, y),
                     x + MMGame.CIRC_SPACING, y);
   }
+
+  public ILoColor append(Color c) {
+    if (this.rest.length() == 0) {
+      return new ConsLoColor(this.first, new ConsLoColor(c, new MtLoColor()));
+    } else {
+      return new ConsLoColor(this.first, this.rest.append(c));
+    }
+  }
+
+  public ILoColor chop() {
+    if (this.length() == 1) {
+      return new MtLoColor();
+    } else {
+      return new ConsLoColor(this.first, this.rest.chop());
+    }
+  }
 }
 
 class Examples {
@@ -332,7 +391,7 @@ class Examples {
   // games
   MMGame testerGame = new MMGame(true, 4, 10, sixColors,
           randomSeq, justRed, new MtLoGuess(), new Random(1));
-  MMGame testerGame1 = new MMGame(true, 4, 10, sixColors,
+  MMGame testerGame1 = new MMGame(true, 4, 13, sixColors,
           randomSeq, justRed, new ConsLoGuess(guessOfBRGY, new ConsLoGuess(guessOfGBPR, new MtLoGuess())), new Random(1));
 
   boolean testConstructor(Tester tester) {
