@@ -82,29 +82,60 @@ class MMGame extends World {
 
   // to-draw
   public WorldScene makeScene() {
+    return this.drawBoard().placeImageXY(new RectangleImage(
+            (sequenceLen * CIRC_SPACING),
+            SIZE /16,
+            OutlineMode.SOLID,
+            Color.BLACK), (SIZE / 2) - 2 * CIRC_SPACING, 200);
+  }
+
+  public WorldScene drawBoard() {
     WorldScene bg = this.getEmptyScene();
 
-    int leftX = (int) (SIZE/2) - (this.possibleColors.length() / 2) * CIRC_SPACING;
+    int leftX = (SIZE / 2) - (this.possibleColors.length() / 2) * CIRC_SPACING;
     int rightX = leftX + (this.sequenceLen * CIRC_SPACING);
 
     int guessedLen = past.length();
-    int currentY = (14 - guessedLen) / 16;
     int blankCount = this.maxGuesses - (guessedLen + 1);
+
+    int unguessedY = (13 - this.past.length()) * SIZE / 16;
 
     // drawing individual components
     WorldScene bgWithOptions = this.possibleColors.draw(bg, leftX, SIZE * 15 / 16);
     WorldScene withGuesses = this.past.drawGuesses(bgWithOptions, leftX, rightX, SIZE * 14 / 16);
-    WorldScene withCurrent = this.drawCurrent(withGuesses, leftX, currentY);
-
-    return withGuesses;
+    WorldScene withCurrent = this.drawCurrent(withGuesses, leftX, rightX - CIRC_SPACING);
+    return this.drawUnguessed(withCurrent, blankCount, rightX - CIRC_SPACING, unguessedY);
   }
 
   // draw the current guess row
-  public WorldScene drawCurrent(WorldScene bg, int leftX, int y) {
-    if(this.current.length() == sequenceLen) {
-      return this.current.draw(bg, leftX, y);
+  public WorldScene drawCurrent(WorldScene bg, int leftX, int rightX) {
+    int rowY = (14 - this.past.length()) * SIZE / 16;
+
+    if (this.current.length() == sequenceLen) {
+      return this.current.draw(bg, leftX, rowY);
     } else {
-      return this.current.addBlanks(this.sequenceLen).draw(bg, leftX, y);
+      int blanks = this.sequenceLen - this.current.length();
+      return this.current.draw(this.drawBlanks(bg, blanks, rightX, rowY), leftX, rowY);
+    }
+  }
+
+  // draws the unguessed rows
+  public WorldScene drawUnguessed(WorldScene bg, int blankCount, int rightX, int y) {
+    if (blankCount == 0) {
+      return bg;
+    } else {
+      WorldScene updatedBg = this.drawBlanks(bg, this.sequenceLen, rightX, y);
+      return this.drawUnguessed(updatedBg, blankCount - 1, rightX, y - (SIZE / 16));
+    }
+  }
+
+  // draws the blanks from the right given the count
+  public WorldScene drawBlanks(WorldScene bg, int blanks, int x, int y) {
+    if (blanks == 0) {
+      return bg;
+    } else {
+      WorldScene updatedBg = bg.placeImageXY(new CircleImage(CIRC_SIZE, OutlineMode.OUTLINE, Color.BLACK), x, y);
+      return this.drawBlanks(updatedBg, blanks - 1, x - CIRC_SPACING, y);
     }
   }
 }
