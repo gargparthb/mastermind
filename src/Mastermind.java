@@ -147,7 +147,7 @@ class MMGame extends World {
   public World onKeyEvent(String key) {
     boolean isFull = this.current.length() == sequenceLen;
 
-    if ("1234567890".contains(key) && Integer.parseInt(key) <= this.possibleColors.length() && !isFull) {
+    if ("123456789".contains(key) && Integer.parseInt(key) <= this.possibleColors.length() && !isFull) {
       return this.appendToCurrent(this.possibleColors.getIndex(Integer.parseInt(key) - 1));
     } else if (key.equals("backspace")) {
       return this.removeLastGuess();
@@ -176,7 +176,9 @@ class MMGame extends World {
 
   // turns the current input into a past guess with feedback
   public MMGame processGuess() {
-    return this.replaceCurrentandPast(new MtLoColor(), this.past.appendWithFeedback(this.correct, this.current));
+    return this.replaceCurrentandPast(new MtLoColor(), this.past.append(new Guess(this.current,
+            this.current.findInexact(correct),
+            this.current.findExact(correct))));
   }
 }
 
@@ -210,7 +212,7 @@ interface ILoGuess {
   int length();
 
   // adds the list of colors to the list with the feedback numbers
-  ILoGuess appendWithFeedback(ILoColor correct, ILoColor guess);
+  ILoGuess append(Guess g);
 }
 
 class MtLoGuess implements ILoGuess {
@@ -222,8 +224,8 @@ class MtLoGuess implements ILoGuess {
     return 0;
   }
 
-  public ILoGuess appendWithFeedback(ILoColor correct, ILoColor guess) {
-    return new ConsLoGuess(correct.toGuess(new Guess(guess, 0, 0)), new MtLoGuess());
+  public ILoGuess append(Guess guess) {
+    return new ConsLoGuess(guess, new MtLoGuess());
   }
 }
 
@@ -244,11 +246,11 @@ class ConsLoGuess implements ILoGuess {
     return 1 + this.rest.length();
   }
 
-  public ILoGuess appendWithFeedback(ILoColor correct, ILoColor guess) {
+  public ILoGuess append(Guess guess) {
     if (this.rest.length() == 0) {
-      return new ConsLoGuess(this.first, new ConsLoGuess(correct.toGuess(new Guess(guess, 0, 0)), new MtLoGuess()));
+      return new ConsLoGuess(this.first, new ConsLoGuess(guess, new MtLoGuess()));
     } else {
-      return new ConsLoGuess(this.first, this.rest.appendWithFeedback(correct, guess));
+      return new ConsLoGuess(this.first, this.rest.append(guess));
     }
   }
 }
@@ -275,8 +277,20 @@ interface ILoColor {
   // removes last item
   ILoColor chop();
 
-  // accumulates the feedback onto a guess
-  Guess toGuess(Guess soFar);
+  // gets the exact matches in linked list
+  int findExact(ILoColor correct);
+
+  // remove the exact matches in two lists
+  ILoColor removeExact(ILoColor comp);
+
+  // remove the exact matches in two lists using the pointer index
+  ILoColor removeExact(ILoColor comp, int currentIndex);
+
+  // count the inexact matches
+  int findInexact(ILoColor correct);
+
+  // is the given color inside this
+  boolean isMember(Color c);
 }
 
 class MtLoColor implements ILoColor {
@@ -310,16 +324,32 @@ class MtLoColor implements ILoColor {
   }
 
   public ILoColor append(Color c) {
-    return new ConsLoColor(c, new MtLoColor());
+    return new ConsLoColor(c, this);
   }
 
   public ILoColor chop() {
     return this;
   }
 
-  @Override
-  public Guess toGuess(Guess soFar) {
-    return null;
+  public int findExact(ILoColor correct) {
+    return 0;
+  }
+
+  public ILoColor removeExact(ILoColor comp) {
+    return this;
+  }
+
+
+  public ILoColor removeExact(ILoColor comp, int currentIndex) {
+    return this;
+  }
+
+  public int findInexact(ILoColor correct) {
+    return 0;
+  }
+
+  public boolean isMember(Color c) {
+    return false;
   }
 }
 
@@ -374,24 +404,49 @@ class ConsLoColor implements ILoColor {
   }
 
   public ILoColor append(Color c) {
-    if (this.rest.length() == 0) {
-      return new ConsLoColor(this.first, new ConsLoColor(c, new MtLoColor()));
-    } else {
-      return new ConsLoColor(this.first, this.rest.append(c));
-    }
+    return new ConsLoColor(this.first, this.rest.append(c));
   }
 
   public ILoColor chop() {
-    if (this.length() == 1) {
-      return new MtLoColor();
-    } else {
+    if (this.length() > 1) {
       return new ConsLoColor(this.first, this.rest.chop());
+    } else {
+      return this.rest;
     }
   }
 
-  @Override
-  public Guess toGuess(Guess soFar) {
-    return null;
+  public int findExact(ILoColor correct) {
+    return this.length() - this.removeExact(correct).length();
+  }
+
+  public ILoColor removeExact(ILoColor comp) {
+    return this.removeExact(comp, 0);
+  }
+
+  public ILoColor removeExact(ILoColor comp, int currentIndex) {
+    ILoColor next = this.rest.removeExact(comp, currentIndex + 1);
+
+    if (this.first.equals(comp.getIndex(currentIndex))) {
+      return next;
+    } else {
+      return new ConsLoColor(this.first, next);
+    }
+  }
+
+  public int findInexact(ILoColor correct) {
+    if(correct.isMember(this.first)) {
+      return 1 + this.rest.findInexact(correct.remove(this.first));
+    } else {
+      return this.rest.findInexact(correct);
+    }
+  }
+
+  public boolean isMember(Color c) {
+    if(c.equals(this.first)) {
+      return true;
+    } else {
+      return this.rest.isMember(c);
+    }
   }
 }
 
