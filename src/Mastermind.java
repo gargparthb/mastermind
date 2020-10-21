@@ -223,7 +223,7 @@ class MtLoGuess implements ILoGuess {
   }
 
   public ILoGuess appendWithFeedback(ILoColor correct, ILoColor guess) {
-    return new ConsLoGuess(guess.makeGuess(correct), new MtLoGuess());
+    return new ConsLoGuess(correct.toGuess(new Guess(guess, 0, 0)), new MtLoGuess());
   }
 }
 
@@ -246,7 +246,7 @@ class ConsLoGuess implements ILoGuess {
 
   public ILoGuess appendWithFeedback(ILoColor correct, ILoColor guess) {
     if (this.rest.length() == 0) {
-      return new ConsLoGuess(this.first, new ConsLoGuess(guess.makeGuess(correct), new MtLoGuess()));
+      return new ConsLoGuess(this.first, new ConsLoGuess(correct.toGuess(new Guess(guess, 0, 0)), new MtLoGuess()));
     } else {
       return new ConsLoGuess(this.first, this.rest.appendWithFeedback(correct, guess));
     }
@@ -275,8 +275,8 @@ interface ILoColor {
   // removes last item
   ILoColor chop();
 
-  // calculates the feedback and makes the guess given the correct sequence
-  Guess makeGuess(ILoColor correct);
+  // accumulates the feedback onto a guess
+  Guess toGuess(Guess soFar);
 }
 
 class MtLoColor implements ILoColor {
@@ -317,9 +317,9 @@ class MtLoColor implements ILoColor {
     return this;
   }
 
-  public Guess makeGuess(ILoColor correct) {
-    // vacuous case
-    return new Guess(new MtLoColor(), 0, 0);
+  @Override
+  public Guess toGuess(Guess soFar) {
+    return null;
   }
 }
 
@@ -389,8 +389,9 @@ class ConsLoColor implements ILoColor {
     }
   }
 
-  public Guess makeGuess(ILoColor) {
-
+  @Override
+  public Guess toGuess(Guess soFar) {
+    return null;
   }
 }
 
