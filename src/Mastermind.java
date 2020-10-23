@@ -1,3 +1,4 @@
+
 import tester.*;                // The tester library
 import javalib.worldimages.*;   // images, like RectangleImage or OverlayImages
 import javalib.funworld.*;      // the abstract World class and the big-bang library
@@ -12,8 +13,6 @@ class MMGame extends World {
   // drawing variables
   static int CIRC_SIZE = 20;
   static int CIRC_SPACING = 50;
-
-  static int BOTTOM_Y = 15;
 
   // configurations
   boolean duplicatesAllowed;
@@ -64,6 +63,7 @@ class MMGame extends World {
             new MtLoGuess(),
             new Random());
   }
+
   // starts the accumulator to make a random sequence
   static ILoColor makeSequence(boolean duplicatesAllowed, int len, ILoColor possibleColors, Random gen) {
     // starts accumulator
@@ -106,17 +106,22 @@ class MMGame extends World {
   public WorldScene drawBoard() {
     WorldScene bg = this.getEmptyScene();
 
-    int bottomY = this.maxGuesses + 1;
-    int rightX = scale(this.sequenceLen + 1);
+    int bottomY = this.maxGuesses + 2;
 
-    int guessedLen = past.length();
-    int blankCount = this.maxGuesses - (guessedLen + 1);
+    int guessedLen = this.past.length();
+    int blankCount;
+
+    if(guessedLen == this.maxGuesses) {
+      blankCount = 0;
+    } else {
+      blankCount = this.maxGuesses - (guessedLen + 1);
+    }
 
     int unguessedY = scale(this.maxGuesses - this.past.length());
 
     // drawing individual components
     WorldScene bgWithOptions = this.possibleColors.draw(bg, scale(1), scale(bottomY));
-    WorldScene withGuesses = this.past.drawGuesses(bgWithOptions, scale(1), rightX, scale(this.maxGuesses));
+    WorldScene withGuesses = this.past.drawGuesses(bgWithOptions, scale(1), scale(this.sequenceLen + 1), scale(bottomY - 1));
     WorldScene withCurrent = this.drawCurrent(withGuesses, scale(1), scale(this.sequenceLen));
     return this.drawUnguessed(withCurrent, blankCount, scale(this.sequenceLen), unguessedY);
   }
@@ -128,7 +133,7 @@ class MMGame extends World {
 
   // draw the current guess row
   public WorldScene drawCurrent(WorldScene bg, int leftX, int rightX) {
-    int rowY = scale(this.maxGuesses - this.past.length());
+    int rowY = scale(this.maxGuesses - this.past.length() + 1);
 
     int blanks = this.sequenceLen - this.current.length();
     return this.current.draw(this.drawBlanks(bg, blanks, rightX, rowY), leftX, rowY);
@@ -137,7 +142,7 @@ class MMGame extends World {
 
   // draws the unguessed rows
   public WorldScene drawUnguessed(WorldScene bg, int blankCount, int rightX, int y) {
-    if (blankCount == 0) {
+    if (blankCount <= 0) {
       return bg;
     } else {
       WorldScene updatedBg = this.drawBlanks(bg, this.sequenceLen, rightX, y);
@@ -147,7 +152,7 @@ class MMGame extends World {
 
   // draws the blanks from the right given the count
   public WorldScene drawBlanks(WorldScene bg, int blanks, int x, int y) {
-    if (blanks == 0) {
+    if (blanks <= 0) {
       return bg;
     } else {
       WorldScene updatedBg = bg.placeImageXY(new CircleImage(CIRC_SIZE, OutlineMode.OUTLINE, Color.BLACK), x, y);
@@ -170,27 +175,40 @@ class MMGame extends World {
     }
   }
 
+  public WorldScene lastScene(String msg) {
+    Color txtColor = msg.equals("Lose!") ? Color.RED : Color.GREEN;
+    return this.correct.draw(this.drawBoard(), scale(1), scale(1))
+            .placeImageXY(new TextImage(msg, CIRC_SIZE,  txtColor), scale(this.correct.length() + 1), scale(1));
+  }
+
   // adds the given color to the current guess
   public MMGame appendToCurrent(Color c) {
-    ILoColor updatedCurrent = this.current.append(c);
-    return this.replaceCurrentandPast(updatedCurrent, this.past);
+    return this.replaceCurrentAndPlace(this.current.append(c), this.past);
   }
 
   // chops off the last color in the current list
   public MMGame removeLastGuess() {
-    return this.replaceCurrentandPast(this.current.chop(), this.past);
+    return this.replaceCurrentAndPlace(this.current.chop(), this.past);
   }
 
   // changes the current guess and the past guesses
-  public MMGame replaceCurrentandPast(ILoColor newCurrent, ILoGuess newPast) {
+  public MMGame replaceCurrentAndPlace(ILoColor newCurrent, ILoGuess newPast) {
     return new MMGame(this.duplicatesAllowed, this.sequenceLen, this.maxGuesses, this.possibleColors, this.correct, newCurrent, newPast, this.rand);
   }
 
   // turns the current input into a past guess with feedback
-  public MMGame processGuess() {
-    return this.replaceCurrentandPast(new MtLoColor(), this.past.append(new Guess(this.current,
-            this.current.findInexact(correct),
-            this.current.findExact(correct))));
+  public World processGuess() {
+    int exactMatches = this.current.findExact(correct);
+
+    MMGame updatedWorld = this.replaceCurrentAndPlace(new MtLoColor(), this.past.append(new Guess(this.current,
+            this.current.findInexact(correct) - exactMatches,
+            exactMatches)));
+
+    if(updatedWorld.past.length() == this.maxGuesses) {
+      return updatedWorld.endOfWorld("Lose!");
+    } else {
+      return updatedWorld;
+    }
   }
 
   // computes the width of the window
@@ -200,7 +218,7 @@ class MMGame extends World {
 
   // computes the height of the window
   public int height() {
-    return scale(2 + this.maxGuesses);
+    return scale(3 + this.maxGuesses);
   }
 }
 
@@ -302,9 +320,6 @@ interface ILoColor {
   // gets the exact matches in linked list
   int findExact(ILoColor correct);
 
-  // remove the exact matches in two lists
-  ILoColor removeExact(ILoColor comp);
-
   // remove the exact matches in two lists using the pointer index
   ILoColor removeExact(ILoColor comp, int currentIndex);
 
@@ -355,10 +370,6 @@ class MtLoColor implements ILoColor {
 
   public int findExact(ILoColor correct) {
     return 0;
-  }
-
-  public ILoColor removeExact(ILoColor comp) {
-    return this;
   }
 
 
@@ -438,11 +449,7 @@ class ConsLoColor implements ILoColor {
   }
 
   public int findExact(ILoColor correct) {
-    return this.length() - this.removeExact(correct).length();
-  }
-
-  public ILoColor removeExact(ILoColor comp) {
-    return this.removeExact(comp, 0);
+    return this.length() - this.removeExact(correct, 0).length();
   }
 
   public ILoColor removeExact(ILoColor comp, int currentIndex) {
@@ -501,8 +508,10 @@ class Examples {
   // games
   MMGame testerGame = new MMGame(true, 4, 10, sixColors,
           randomSeq, justRed, new MtLoGuess(), new Random(1));
-  MMGame testerGame1 = new MMGame(true, 4, 13, sixColors,
+  MMGame testerGame1 = new MMGame(true, 4, 10, sixColors,
           randomSeq, justRed, new ConsLoGuess(guessOfBRGY, new ConsLoGuess(guessOfGBPR, new MtLoGuess())), new Random(1));
+  MMGame testerGame2 = new MMGame(true, 4, 4, sixColors, randomSeq,  BGRY,
+          new ConsLoGuess(guessOfGBPR, new ConsLoGuess(guessOfGBPR, new ConsLoGuess(guessOfGBPR, new MtLoGuess()))), new Random(1));
 
   boolean testConstructor(Tester tester) {
     return tester.checkConstructorException(new IllegalArgumentException("values must be greater than zero"), "MMGame", true, -1, -1, sixColors)
@@ -517,6 +526,46 @@ class Examples {
             && tester.checkException(new IllegalArgumentException("given index is not in the list"), GBPR, "getIndex", 10);
   }
 
+  boolean testKeyInput(Tester tester) {
+    return tester.checkExpect(testerGame1.onKeyEvent("1"), new MMGame(true, 4, 10, sixColors,
+            randomSeq, new ConsLoColor(Color.RED, new ConsLoColor(Color.BLUE, new MtLoColor())), new ConsLoGuess(guessOfBRGY, new ConsLoGuess(guessOfGBPR, new MtLoGuess())), new Random(1)))
+            && tester.checkExpect(testerGame1.onKeyEvent("backspace"), new MMGame(true, 4, 10, sixColors,
+            randomSeq, new MtLoColor(), new ConsLoGuess(guessOfBRGY, new ConsLoGuess(guessOfGBPR, new MtLoGuess())), new Random(1)));
+  }
+
+  boolean testLen(Tester tester) {
+    return tester.checkExpect(BGRY.length(), 4)
+            && tester.checkExpect(new MtLoColor().length(), 0)
+            && tester.checkExpect(sixColors.length(), 6);
+  }
+
+  boolean testAppend(Tester tester) {
+    return tester.checkExpect(BGRY.append(Color.PINK),
+            new ConsLoColor(Color.BLUE,
+                    new ConsLoColor(Color.GREEN,
+                            new ConsLoColor(Color.RED,
+                                    new ConsLoColor(Color.YELLOW,
+                                            new ConsLoColor(Color.PINK,
+                                                    new MtLoColor()))))))
+            && tester.checkExpect(new MtLoColor().append(Color.PINK), new ConsLoColor(Color.PINK, new MtLoColor()));
+  }
+
+  boolean testChop(Tester tester) {
+    return tester.checkExpect(new MtLoColor().chop(), new MtLoColor())
+            && tester.checkExpect(BGRY.chop(),
+            new ConsLoColor(Color.BLUE,
+                    new ConsLoColor(Color.GREEN,
+                            new ConsLoColor(Color.RED, new MtLoColor()))));
+  }
+
+  boolean testFeedback(Tester tester) {
+    return tester.checkExpect(GBPR.findExact(GBPR), 4)
+            && tester.checkExpect(randomSeq.findExact(randomSeq), 4)
+            && tester.checkExpect(GBPR.findExact(BGRY), 0)
+            && tester.checkExpect(GBPR.findInexact(BGRY), 2);
+
+  }
+
   boolean testRemove(Tester tester) {
     return tester.checkExpect(GBPR.remove(Color.GREEN), new ConsLoColor(Color.BLACK,
             new ConsLoColor(Color.PINK,
@@ -524,8 +573,17 @@ class Examples {
             && tester.checkExpect(GBPR.remove(Color.YELLOW), GBPR);
   }
 
+  boolean testEndGame(Tester tester) {
+    return tester.checkExpect(testerGame2.processGuess(),
+            new MMGame(true, 4, 4, sixColors, randomSeq,  new MtLoColor(),
+            new ConsLoGuess(guessOfGBPR,
+                    new ConsLoGuess(guessOfGBPR,
+                            new ConsLoGuess(guessOfGBPR,
+                                    new ConsLoGuess(new Guess(BGRY, 0, 2), new MtLoGuess())))), new Random(1)).endOfWorld("Lose!"));
+  }
+
   boolean testRun(Tester tester) {
-    MMGame game = new MMGame(true, 1, 10, sixColors);
+    MMGame game = testerGame;
     int w = game.width();
     int h = game.height();
     return game.bigBang(w, h);
