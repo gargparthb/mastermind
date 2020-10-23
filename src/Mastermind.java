@@ -20,8 +20,7 @@ class MMGame extends World {
   ILoColor possibleColors;
 
   // game variables
-  ILoColor correct;
-  ILoColor current;
+  ILoColor correct, current;
   ILoGuess past;
 
   Random rand;
@@ -33,6 +32,7 @@ class MMGame extends World {
     this.maxGuesses = maxGuesses;
     this.possibleColors = possibleColors;
 
+    // must be a way to assign a correct sequence
     this.correct = correct;
     this.current = current;
     this.past = past;
@@ -62,7 +62,6 @@ class MMGame extends World {
             new MtLoGuess(),
             new Random());
   }
-
 
   // starts the accumulator to make a random sequence
   static ILoColor makeSequence(boolean duplicatesAllowed, int len, ILoColor possibleColors, Random gen) {
@@ -95,10 +94,12 @@ class MMGame extends World {
   // to-draw
   public WorldScene makeScene() {
     return this.drawBoard()
+            // places the hidden black rectangle
             .placeImageXY(new RectangleImage(
                     scale(this.sequenceLen),
                     scale(1),
                     OutlineMode.SOLID,
+                    // cannot scale the x value using scale, because of number typing
                     Color.BLACK), ((1 + this.sequenceLen) * CIRC_SPACING / 2), scale(1));
   }
 
@@ -106,19 +107,29 @@ class MMGame extends World {
   public WorldScene drawBoard() {
     WorldScene bg = this.getEmptyScene();
 
-    int bottomY = this.maxGuesses + 1;
-    int rightX = scale(this.sequenceLen + 1);
+    // starting y coord
+    int bottomY = this.maxGuesses + 2;
 
-    int guessedLen = past.length();
-    int blankCount = this.maxGuesses - (guessedLen + 1);
+    // avoids duplicate comp
+    int guessedLen = this.past.length();
 
-    int unguessedY = scale(this.maxGuesses - this.past.length());
+    // amount of blank rows
+    int blankCount = guessedLen == this.maxGuesses ? 0 : this.maxGuesses - (guessedLen + 1);
+
+    // y of blank rows
+    int unguessedY = scale(this.maxGuesses - guessedLen);
 
     // drawing individual components
     WorldScene bgWithOptions = this.possibleColors.draw(bg, scale(1), scale(bottomY));
-    WorldScene withGuesses = this.past.drawGuesses(bgWithOptions, scale(1), rightX, scale(this.maxGuesses));
-    WorldScene withCurrent = this.drawCurrent(withGuesses, scale(1), scale(this.sequenceLen));
-    return this.drawUnguessed(withCurrent, blankCount, scale(this.sequenceLen), unguessedY);
+    WorldScene withGuesses = this.past.drawGuesses(bgWithOptions, scale(1), scale(this.sequenceLen + 1), scale(bottomY - 1));
+
+    // don't alwas have to draw the current input, in case of loss
+    if (this.maxGuesses == guessedLen) {
+      return this.drawUnguessed(withGuesses, blankCount, scale(this.sequenceLen), unguessedY);
+    } else {
+      return this.drawUnguessed(this.drawCurrent(withGuesses, scale(1), scale(this.sequenceLen)),
+              blankCount, scale(this.sequenceLen), unguessedY);
+    }
   }
 
   // scales the Y value to the canvas size
@@ -128,104 +139,105 @@ class MMGame extends World {
 
   // draw the current guess row
   public WorldScene drawCurrent(WorldScene bg, int leftX, int rightX) {
-    int rowY = scale(this.maxGuesses - this.past.length());
+    // computes the y value
+    int rowY = scale(this.maxGuesses - this.past.length() + 1);
 
+    // recurs the blank circles from the right
     int blanks = this.sequenceLen - this.current.length();
     return this.current.draw(this.drawBlanks(bg, blanks, rightX, rowY), leftX, rowY);
   }
 
+
   // draws the unguessed rows
   public WorldScene drawUnguessed(WorldScene bg, int blankCount, int rightX, int y) {
-    if (blankCount == 0) {
+    if (blankCount <= 0) {
       return bg;
     } else {
       WorldScene updatedBg = this.drawBlanks(bg, this.sequenceLen, rightX, y);
+      // moves up the y val
       return this.drawUnguessed(updatedBg, blankCount - 1, rightX, y - scale(1));
     }
   }
 
   // draws the blanks from the right given the count
   public WorldScene drawBlanks(WorldScene bg, int blanks, int x, int y) {
-    if (blanks == 0) {
+    if (blanks <= 0) {
       return bg;
     } else {
       WorldScene updatedBg = bg.placeImageXY(new CircleImage(CIRC_SIZE, OutlineMode.OUTLINE, Color.BLACK), x, y);
+      // moves across
       return this.drawBlanks(updatedBg, blanks - 1, x - CIRC_SPACING, y);
     }
   }
 
   // processes the key input
   public World onKeyEvent(String key) {
-
     boolean isFull = this.current.length() == sequenceLen;
+
     if ("123456789".contains(key) && Integer.parseInt(key) <= this.possibleColors.length() && !isFull) {
       return this.appendToCurrent(this.possibleColors.getIndex(Integer.parseInt(key) - 1));
     } else if (key.equals("backspace")) {
       return this.removeLastGuess();
     } else if (key.equals("enter") && isFull) {
-      return this.processGuess();
+      // checks if the game is over
+      if (this.current.findExact(correct) == this.sequenceLen) {
+        return this.endOfWorld("Victory!");
+      } else if(this.past.length() + 1 == this.maxGuesses) {
+        return this.endOfWorld("Lose!");
+      } else {
+        return this.processGuess();
+      }
     } else {
       return this;
     }
   }
+
+  // draws the final scene of the game based on win or loss
+  public WorldScene lastScene(String msg) {
+    Color txtColor = msg.equals("Lose!") ? Color.RED : Color.GREEN;
+    // have to advance game state for drawing
+    MMGame updatedGame = this.processGuess();
+
+    int offset = 3 * CIRC_SPACING / 2;
+    int textX = scale(updatedGame.sequenceLen) + offset;
+
+    return updatedGame.correct.draw(updatedGame.drawBoard(), scale(1), scale(1))
+            .placeImageXY(new TextImage(msg, CIRC_SIZE,  txtColor), textX, scale(1));
+  }
+
   // adds the given color to the current guess
   public MMGame appendToCurrent(Color c) {
-    ILoColor updatedCurrent = this.current.append(c);
-    return this.replaceCurrentAndPast(updatedCurrent, this.past);
+    return this.replaceCurrentAndPlace(this.current.append(c), this.past);
   }
 
   // chops off the last color in the current list
   public MMGame removeLastGuess() {
-    return this.replaceCurrentAndPast(this.current.chop(), this.past);
+    return this.replaceCurrentAndPlace(this.current.chop(), this.past);
   }
 
   // changes the current guess and the past guesses
-  public MMGame replaceCurrentAndPast(ILoColor newCurrent, ILoGuess newPast) {
+  public MMGame replaceCurrentAndPlace(ILoColor newCurrent, ILoGuess newPast) {
+    // must use the manuel assignment constructor!
     return new MMGame(this.duplicatesAllowed, this.sequenceLen, this.maxGuesses, this.possibleColors, this.correct, newCurrent, newPast, this.rand);
   }
 
-  // turns the current input inato a past guess with feedback
-  public World processGuess() {
+  // turns the current input into a past guess with feedback
+  public MMGame processGuess() {
     int exactMatches = this.current.findExact(correct);
 
-    MMGame updatedGame = this.replaceCurrentAndPast(new MtLoColor(), this.past.append(new Guess(this.current,
+    return this.replaceCurrentAndPlace(new MtLoColor(), this.past.append(new Guess(this.current,
             this.current.findInexact(correct) - exactMatches,
             exactMatches)));
-
-    if(updatedGame.past.length() == updatedGame.maxGuesses) {
-      return updatedGame.endOfWorld("lose");
-    } else if(this.current.equals(this.correct)) {
-      return updatedGame.endOfWorld("win");
-    } else {
-      return updatedGame;
-    }
   }
 
   // computes the width of the window
   public int width() {
-    return scale(this.possibleColors.length() + 1);
+    return scale(Math.max(this.possibleColors.length() + 1, this.sequenceLen + 3));
   }
 
   // computes the height of the window
   public int height() {
-    return scale(2 + this.maxGuesses);
-  }
-
-  // generates the final frame
-  public WorldScene lastScene(String msg) {
-    if(msg.equals("win")) {
-      return this.drawFinalState("Win!");
-    } else {
-      return this.drawFinalState("Lose :(");
-    }
-  }
-
-  // reveals the correct code with a message
-  public WorldScene drawFinalState(String msg) {
-    Color txtColor = msg.equals("Win!") ? Color.GREEN : Color.RED;
-
-    return this.correct.draw(this.drawBoard(), scale(1), scale(1))
-            .placeImageXY(new TextImage(msg, CIRC_SIZE, txtColor), scale(this.sequenceLen + 1), 1);
+    return scale(3 + this.maxGuesses);
   }
 }
 
@@ -327,8 +339,8 @@ interface ILoColor {
   // gets the exact matches in linked list
   int findExact(ILoColor correct);
 
-  // counts the amount of exact;
-  int findExact(ILoColor correct, int soFarMatch, int currentIndex);
+  // remove the exact matches in two lists using the pointer index
+  ILoColor removeExact(ILoColor comp, int currentIndex);
 
   // count the inexact matches
   int findInexact(ILoColor correct);
@@ -351,7 +363,7 @@ class MtLoColor implements ILoColor {
       Color newColor = possibleColors.getIndex(gen.nextInt(possibleColors.length()));
       ILoColor newPosColors = duplicatesAllowed ? possibleColors : possibleColors.remove(newColor);
 
-      return new ConsLoColor(newColor, this).makeSequence(duplicatesAllowed, left - 1, newPosColors, gen);
+      return new ConsLoColor(newColor, new MtLoColor()).makeSequence(duplicatesAllowed, left - 1, newPosColors, gen);
     }
   }
 
@@ -379,8 +391,9 @@ class MtLoColor implements ILoColor {
     return 0;
   }
 
-  public int findExact(ILoColor correct, int soFarMatch, int currentIndex) {
-    return soFarMatch;
+
+  public ILoColor removeExact(ILoColor comp, int currentIndex) {
+    return this;
   }
 
   public int findInexact(ILoColor correct) {
@@ -455,14 +468,16 @@ class ConsLoColor implements ILoColor {
   }
 
   public int findExact(ILoColor correct) {
-    return this.findExact(correct, 0, 0);
+    return this.length() - this.removeExact(correct, 0).length();
   }
 
-  public int findExact(ILoColor correct, int soFarMatch, int currentIndex) {
-    if (this.first.equals(correct.getIndex(currentIndex))) {
-      return this.rest.findExact(correct, soFarMatch + 1, currentIndex + 1);
+  public ILoColor removeExact(ILoColor comp, int currentIndex) {
+    ILoColor next = this.rest.removeExact(comp, currentIndex + 1);
+
+    if (this.first.equals(comp.getIndex(currentIndex))) {
+      return next;
     } else {
-      return this.rest.findExact(correct, soFarMatch, currentIndex + 1);
+      return new ConsLoColor(this.first, next);
     }
   }
 
@@ -500,7 +515,7 @@ class Examples {
           new ConsLoColor(Color.BLACK,
                   new ConsLoColor(Color.PINK,
                           justRed)));
-  ILoColor BGRY = new ConsLoColor(Color.BLACK,
+  ILoColor BGRY = new ConsLoColor(Color.BLUE,
           new ConsLoColor(Color.GREEN,
                   new ConsLoColor(Color.RED,
                           new ConsLoColor(Color.YELLOW, new MtLoColor()))));
@@ -512,8 +527,10 @@ class Examples {
   // games
   MMGame testerGame = new MMGame(true, 4, 10, sixColors,
           randomSeq, justRed, new MtLoGuess(), new Random(1));
-  MMGame testerGame1 = new MMGame(true, 4, 13, sixColors,
-          randomSeq, justRed, new ConsLoGuess(guessOfBRGY, new ConsLoGuess(guessOfGBPR, new MtLoGuess())), new Random());
+  MMGame testerGame1 = new MMGame(true, 4, 10, sixColors,
+          randomSeq, justRed, new ConsLoGuess(guessOfBRGY, new ConsLoGuess(guessOfGBPR, new MtLoGuess())), new Random(1));
+  MMGame testerGame2 = new MMGame(true, 4, 4, sixColors, randomSeq,  BGRY,
+          new ConsLoGuess(guessOfGBPR, new ConsLoGuess(guessOfGBPR, new ConsLoGuess(guessOfGBPR, new MtLoGuess()))), new Random(1));
 
   boolean testConstructor(Tester tester) {
     return tester.checkConstructorException(new IllegalArgumentException("values must be greater than zero"), "MMGame", true, -1, -1, sixColors)
@@ -528,11 +545,11 @@ class Examples {
             && tester.checkException(new IllegalArgumentException("given index is not in the list"), GBPR, "getIndex", 10);
   }
 
-  boolean testRemove(Tester tester) {
-    return tester.checkExpect(GBPR.remove(Color.GREEN), new ConsLoColor(Color.BLACK,
-            new ConsLoColor(Color.PINK,
-                    justRed)))
-            && tester.checkExpect(GBPR.remove(Color.YELLOW), GBPR);
+  boolean testKeyInput(Tester tester) {
+    return tester.checkExpect(testerGame1.onKeyEvent("1"), new MMGame(true, 4, 10, sixColors,
+            randomSeq, new ConsLoColor(Color.RED, new ConsLoColor(Color.BLUE, new MtLoColor())), new ConsLoGuess(guessOfBRGY, new ConsLoGuess(guessOfGBPR, new MtLoGuess())), new Random(1)))
+            && tester.checkExpect(testerGame1.onKeyEvent("backspace"), new MMGame(true, 4, 10, sixColors,
+            randomSeq, new MtLoColor(), new ConsLoGuess(guessOfBRGY, new ConsLoGuess(guessOfGBPR, new MtLoGuess())), new Random(1)));
   }
 
   boolean testLen(Tester tester) {
@@ -543,7 +560,7 @@ class Examples {
 
   boolean testAppend(Tester tester) {
     return tester.checkExpect(BGRY.append(Color.PINK),
-            new ConsLoColor(Color.BLACK,
+            new ConsLoColor(Color.BLUE,
                     new ConsLoColor(Color.GREEN,
                             new ConsLoColor(Color.RED,
                                     new ConsLoColor(Color.YELLOW,
@@ -555,7 +572,7 @@ class Examples {
   boolean testChop(Tester tester) {
     return tester.checkExpect(new MtLoColor().chop(), new MtLoColor())
             && tester.checkExpect(BGRY.chop(),
-            new ConsLoColor(Color.BLACK,
+            new ConsLoColor(Color.BLUE,
                     new ConsLoColor(Color.GREEN,
                             new ConsLoColor(Color.RED, new MtLoColor()))));
   }
@@ -564,12 +581,28 @@ class Examples {
     return tester.checkExpect(GBPR.findExact(GBPR), 4)
             && tester.checkExpect(randomSeq.findExact(randomSeq), 4)
             && tester.checkExpect(GBPR.findExact(BGRY), 0)
-            && tester.checkExpect(GBPR.findInexact(BGRY), 3);
+            && tester.checkExpect(GBPR.findInexact(BGRY), 2);
 
   }
 
+  boolean testRemove(Tester tester) {
+    return tester.checkExpect(GBPR.remove(Color.GREEN), new ConsLoColor(Color.BLACK,
+            new ConsLoColor(Color.PINK,
+                    justRed)))
+            && tester.checkExpect(GBPR.remove(Color.YELLOW), GBPR);
+  }
+
+  boolean testEndGame(Tester tester) {
+    return tester.checkExpect(testerGame2.processGuess(),
+            new MMGame(true, 4, 4, sixColors, randomSeq,  new MtLoColor(),
+                    new ConsLoGuess(guessOfGBPR,
+                            new ConsLoGuess(guessOfGBPR,
+                                    new ConsLoGuess(guessOfGBPR,
+                                            new ConsLoGuess(new Guess(BGRY, 0, 2), new MtLoGuess())))), new Random(1)).endOfWorld("Lose!"));
+  }
+
   boolean testRun(Tester tester) {
-    MMGame game = new MMGame(true, 1, 10, sixColors);
+    MMGame game = new MMGame(true, 5, 10, sixColors);
     int w = game.width();
     int h = game.height();
     return game.bigBang(w, h);
