@@ -182,7 +182,7 @@ class MMGame extends World {
       // checks if the game is over
       if (this.current.findExact(correct) == this.sequenceLen) {
         return this.endOfWorld("Victory!");
-      } else if(this.past.length() + 1 == this.maxGuesses) {
+      } else if (this.past.length() + 1 == this.maxGuesses) {
         return this.endOfWorld("Lose!");
       } else {
         return this.processGuess();
@@ -202,7 +202,7 @@ class MMGame extends World {
     int textX = scale(updatedGame.sequenceLen) + offset;
 
     return updatedGame.correct.draw(updatedGame.drawBoard(), scale(1), scale(1))
-            .placeImageXY(new TextImage(msg, CIRC_SIZE,  txtColor), textX, scale(1));
+            .placeImageXY(new TextImage(msg, CIRC_SIZE, txtColor), textX, scale(1));
   }
 
   // adds the given color to the current guess
@@ -529,7 +529,7 @@ class Examples {
           randomSeq, justRed, new MtLoGuess(), new Random(1));
   MMGame testerGame1 = new MMGame(true, 4, 10, sixColors,
           randomSeq, justRed, new ConsLoGuess(guessOfBRGY, new ConsLoGuess(guessOfGBPR, new MtLoGuess())), new Random(1));
-  MMGame testerGame2 = new MMGame(true, 4, 4, sixColors, randomSeq,  BGRY,
+  MMGame testerGame2 = new MMGame(true, 4, 4, sixColors, randomSeq, BGRY,
           new ConsLoGuess(guessOfGBPR, new ConsLoGuess(guessOfGBPR, new ConsLoGuess(guessOfGBPR, new MtLoGuess()))), new Random(1));
 
   boolean testConstructor(Tester tester) {
@@ -594,7 +594,7 @@ class Examples {
 
   boolean testEndGame(Tester tester) {
     return tester.checkExpect(testerGame2.processGuess(),
-            new MMGame(true, 4, 4, sixColors, randomSeq,  new MtLoColor(),
+            new MMGame(true, 4, 4, sixColors, randomSeq, new MtLoColor(),
                     new ConsLoGuess(guessOfGBPR,
                             new ConsLoGuess(guessOfGBPR,
                                     new ConsLoGuess(guessOfGBPR,
