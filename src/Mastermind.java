@@ -123,7 +123,7 @@ class MMGame extends World {
     WorldScene bgWithOptions = this.possibleColors.draw(bg, scale(1), scale(bottomY));
     WorldScene withGuesses = this.past.drawGuesses(bgWithOptions, scale(1), scale(this.sequenceLen + 1), scale(bottomY - 1));
 
-    // don't alwas have to draw the current input, in case of loss
+    // don't have to draw the current input, in case of loss
     if (this.maxGuesses == guessedLen) {
       return this.drawUnguessed(withGuesses, blankCount, scale(this.sequenceLen), unguessedY);
     } else {
@@ -195,6 +195,7 @@ class MMGame extends World {
   // draws the final scene of the game based on win or loss
   public WorldScene lastScene(String msg) {
     Color txtColor = msg.equals("Lose!") ? Color.RED : Color.GREEN;
+
     // have to advance game state for drawing
     MMGame updatedGame = this.processGuess();
 
@@ -339,8 +340,8 @@ interface ILoColor {
   // gets the exact matches in linked list
   int findExact(ILoColor correct);
 
-  // counts the exact matches with an accumulator and a pointer index
-  int findExact(ILoColor correct, int matches, int currentIndex);
+  // checks the given color against this first and recurs using double dispatch
+  int countExact(ConsLoColor comp);
 
   // count the inexact matches
   int findInexact(ILoColor correct);
@@ -391,11 +392,11 @@ class MtLoColor implements ILoColor {
     return 0;
   }
 
-  public int findExact(ILoColor correct, int matches, int currentIndex) {
-    return matches;
+  public int findInexact(ILoColor correct) {
+    return 0;
   }
 
-  public int findInexact(ILoColor correct) {
+  public int countExact(ConsLoColor comp) {
     return 0;
   }
 
@@ -419,8 +420,6 @@ class ConsLoColor implements ILoColor {
   }
 
   public ILoColor makeSequence(boolean duplicatesAllowed, int left, ILoColor possibleColors, Random gen) {
-    // is there a way to abstract this
-    // uses natural number recursion
     if (left == 0) {
       return this;
     } else {
@@ -467,20 +466,19 @@ class ConsLoColor implements ILoColor {
   }
 
   public int findExact(ILoColor correct) {
-    return this.findExact(correct, 0, 0);
+    return correct.countExact(this);
   }
 
-  public int findExact(ILoColor correct, int matches, int currentIndex) {
-    // allows for lists with different lengths
-    if(currentIndex >= correct.length()) {
-      return matches;
+  /**
+   * Switches between the known Cons case and the unknown case,
+   * Reaches the base case if either of the lists are empty
+   * */
+
+  public int countExact(ConsLoColor comp) {
+    if (this.first.equals(comp.first)) {
+      return 1 + comp.rest.findExact(this.rest);
     } else {
-      // recursive calls ]
-      if(this.first.equals(correct.getIndex(currentIndex))) {
-        return this.rest.findExact(correct, matches + 1, currentIndex + 1);
-      } else {
-        return this.rest.findExact(correct, matches, currentIndex + 1);
-      }
+      return comp.rest.findExact(this.rest);
     }
   }
 
@@ -605,7 +603,7 @@ class Examples {
   }
 
   boolean testRun(Tester tester) {
-    MMGame game = new MMGame(true, 5, 10, sixColors);
+    MMGame game = new MMGame(true, 3, 10, sixColors);
     int w = game.width();
     int h = game.height();
     return game.bigBang(w, h);
