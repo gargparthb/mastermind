@@ -132,7 +132,7 @@ class MMGame extends World {
     }
   }
 
-  // scales the Y value to the canvas size
+  // scales the value to the canvas size
   static int scale(int n) {
     return n * CIRC_SPACING;
   }
@@ -339,8 +339,8 @@ interface ILoColor {
   // gets the exact matches in linked list
   int findExact(ILoColor correct);
 
-  // remove the exact matches in two lists using the pointer index
-  ILoColor removeExact(ILoColor comp, int currentIndex);
+  // counts the exact matches with an accumulator and a pointer index
+  int findExact(ILoColor correct, int matches, int currentIndex);
 
   // count the inexact matches
   int findInexact(ILoColor correct);
@@ -391,9 +391,8 @@ class MtLoColor implements ILoColor {
     return 0;
   }
 
-
-  public ILoColor removeExact(ILoColor comp, int currentIndex) {
-    return this;
+  public int findExact(ILoColor correct, int matches, int currentIndex) {
+    return matches;
   }
 
   public int findInexact(ILoColor correct) {
@@ -468,16 +467,20 @@ class ConsLoColor implements ILoColor {
   }
 
   public int findExact(ILoColor correct) {
-    return this.length() - this.removeExact(correct, 0).length();
+    return this.findExact(correct, 0, 0);
   }
 
-  public ILoColor removeExact(ILoColor comp, int currentIndex) {
-    ILoColor next = this.rest.removeExact(comp, currentIndex + 1);
-
-    if (this.first.equals(comp.getIndex(currentIndex))) {
-      return next;
+  public int findExact(ILoColor correct, int matches, int currentIndex) {
+    // allows for lists with different lengths
+    if(currentIndex >= correct.length()) {
+      return matches;
     } else {
-      return new ConsLoColor(this.first, next);
+      // recursive calls ]
+      if(this.first.equals(correct.getIndex(currentIndex))) {
+        return this.rest.findExact(correct, matches + 1, currentIndex + 1);
+      } else {
+        return this.rest.findExact(correct, matches, currentIndex + 1);
+      }
     }
   }
 
